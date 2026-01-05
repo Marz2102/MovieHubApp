@@ -49,7 +49,7 @@ public class MovieHubAppTest {
         assertEquals(200, response.statusCode(), "GET /movies должен вернуть 200");
 
         String contentTypeHeaderValue = response.headers().firstValue("Content-Type").orElse("");
-        assertEquals("application/json; charset=utf-8", contentTypeHeaderValue,
+        assertEquals("application/json; charset=UTF-8", contentTypeHeaderValue,
                 "Content-Type должен содержать формат данных и кодировку");
 
         String body = response.body().trim();
@@ -70,7 +70,7 @@ public class MovieHubAppTest {
         assertEquals(200, response.statusCode(), "GET /movies должен вернуть 200");
 
         String contentTypeHeaderValue = response.headers().firstValue("Content-Type").orElse("");
-        assertEquals("application/json; charset=utf-8", contentTypeHeaderValue,
+        assertEquals("application/json; charset=UTF-8", contentTypeHeaderValue,
                 "Content-Type должен содержать формат данных и кодировку");
 
         JsonElement jsonElement = JsonParser.parseString(response.body());
@@ -102,7 +102,7 @@ public class MovieHubAppTest {
         assertEquals(201, response.statusCode(), "POST /movies с корректным JSON должен вернуть 201");
 
         String contentTypeHeaderValue = response.headers().firstValue("Content-Type").orElse("");
-        assertEquals("application/json; charset=utf-8", contentTypeHeaderValue,
+        assertEquals("application/json; charset=UTF-8", contentTypeHeaderValue,
                 "Content-Type должен содержать формат данных и кодировку");
 
         JsonElement jsonElement = JsonParser.parseString(response.body());
@@ -212,7 +212,7 @@ public class MovieHubAppTest {
         assertEquals(200, response.statusCode(), "GET /movies/1 должен вернуть 200");
 
         String contentTypeHeaderValue = response.headers().firstValue("Content-Type").orElse("");
-        assertEquals("application/json; charset=utf-8", contentTypeHeaderValue,
+        assertEquals("application/json; charset=UTF-8", contentTypeHeaderValue,
                 "Content-Type должен содержать формат данных и кодировку");
 
         JsonElement jsonElement = JsonParser.parseString(response.body());
@@ -277,20 +277,20 @@ public class MovieHubAppTest {
         moviesStore.addMovie(new Movie("Аватар", 2009));
 
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        assertEquals(404, response.statusCode(), "GET /movies/2 должен вернуть 404");
+        assertEquals(404, response.statusCode(), "DELETE /movies/2 должен вернуть 404");
     }
 
     @Test
     void deleteMoviesByIdWhenIdNotANumber() throws Exception {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(BASE + "/movies/avatar"))
-                .GET()
+                .DELETE()
                 .build();
 
         moviesStore.addMovie(new Movie("Аватар", 2009));
 
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        assertEquals(400, response.statusCode(), "GET /movies/avatar должен вернуть 400");
+        assertEquals(400, response.statusCode(), "DELETE /movies/avatar должен вернуть 400");
     }
 
     @Test
@@ -310,7 +310,7 @@ public class MovieHubAppTest {
         assertEquals(200, response.statusCode(), "GET /movies?year=2009 должен вернуть 200");
 
         String contentTypeHeaderValue = response.headers().firstValue("Content-Type").orElse("");
-        assertEquals("application/json; charset=utf-8", contentTypeHeaderValue,
+        assertEquals("application/json; charset=UTF-8", contentTypeHeaderValue,
                 "Content-Type должен содержать формат данных и кодировку");
 
         JsonElement jsonElement = JsonParser.parseString(response.body());
@@ -337,7 +337,7 @@ public class MovieHubAppTest {
         assertEquals(200, response.statusCode(), "GET /movies?year=2008 должен вернуть 200");
 
         String contentTypeHeaderValue = response.headers().firstValue("Content-Type").orElse("");
-        assertEquals("application/json; charset=utf-8", contentTypeHeaderValue,
+        assertEquals("application/json; charset=UTF-8", contentTypeHeaderValue,
                 "Content-Type должен содержать формат данных и кодировку");
 
         JsonElement jsonElement = JsonParser.parseString(response.body());

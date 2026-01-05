@@ -4,10 +4,12 @@ import java.util.*;
 
 public class MoviesStore {
     private final Map<Integer, Movie> movies = new HashMap<>();
+    private int nextId = 1;
 
     public int addMovie(Movie movie) {
-        movies.put(movies.size() + 1, movie);
-        return movies.size();
+        movies.put(nextId, movie);
+        nextId++;
+        return nextId - 1;
     }
 
     public void deleteMovieById(int id) {
@@ -34,5 +36,6 @@ public class MoviesStore {
 
     public void clearMovies() {
         movies.clear();
+        nextId = 1;
     }
 }

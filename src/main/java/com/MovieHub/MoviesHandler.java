@@ -17,6 +17,7 @@ import java.util.Optional;
 public class MoviesHandler implements HttpHandler {
     private static final Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
     private final MoviesStore moviesStore;
+    private final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public MoviesHandler(MoviesStore moviesStore) {
         this.moviesStore = moviesStore;
@@ -48,126 +49,133 @@ public class MoviesHandler implements HttpHandler {
                 break;
             }
             default:
-                writeResponse(exchange, "Такого метода не существует", 405);
+                String errorJson = getErrorJson("Такого метода не существует", List.of());
+                writeResponse(exchange, errorJson, 405);
         }
     }
 
     private void handleGetMovies(HttpExchange exchange) throws IOException {
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
-        String moviesJson = gson.toJson(moviesStore.getAllMovies());
-
-        writeResponse(exchange, moviesJson, 200);
+        writeResponse(exchange, GSON.toJson(moviesStore.getAllMovies()), 200);
     }
 
     private void handlePostMovies(HttpExchange exchange) throws IOException {
-        JsonElement jsonElement = JsonParser.parseString(readRequestAsString(exchange));
-        String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
+        try {
+            JsonElement jsonElement = JsonParser.parseString(readRequestAsString(exchange));
+            String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
 
-        if (!jsonElement.isJsonObject() || contentType == null || !contentType.contains("application/json")) {
-            writeResponse(exchange, "Передайте тело запроса в формате Json", 415);
-            return;
+            if (!jsonElement.isJsonObject() || contentType == null || !contentType.contains("application/json")) {
+                String errorJson = getErrorJson("Передайте тело запроса в формате Json", List.of());
+                writeResponse(exchange, errorJson, 415);
+                return;
+            }
+
+            List<String> details = new ArrayList<>();
+            JsonObject jsonObject = jsonElement.getAsJsonObject();
+
+            if (!jsonObject.has("title")) {
+                details.add("Отсутствует поле 'title'");
+            }
+            if (!jsonObject.has("year")) {
+                details.add("Отсутствует поле 'year'");
+            }
+
+            if (!details.isEmpty()) {
+                String errorJson = getErrorJson("Поля Json некорректны", details);
+                writeResponse(exchange, errorJson, 422);
+                return;
+            }
+
+            String title = jsonObject.get("title").getAsString();
+            int year = jsonObject.get("year").getAsInt();
+
+            if (year < 1888 || year > LocalDateTime.now().getYear() + 1) {
+                details.add("Год должен быть между 1888 и " + LocalDateTime.now().plusYears(1).getYear());
+            }
+
+            if (title.isEmpty()) {
+                details.add("Название не должно быть пустым");
+            } else if (title.length() > 100) {
+                details.add("Название слишком длинное");
+            }
+
+            if (!details.isEmpty()) {
+                String errorJson = getErrorJson("Ошибка с названием или годом выпуска", details);
+                writeResponse(exchange, errorJson, 422);
+                return;
+            }
+
+            Movie movie = new Movie(title, year);
+            int id = moviesStore.addMovie(movie);
+
+            jsonObject.addProperty("id", id);
+            writeResponse(exchange, GSON.toJson(jsonObject), 201);
+        } catch (JsonSyntaxException e) {
+            String errorJson = getErrorJson("Ошибка при парсинге Json", List.of());
+            writeResponse(exchange, errorJson, 415);
         }
-
-        JsonObject jsonObject = jsonElement.getAsJsonObject();
-        if (!jsonObject.has("title") || !jsonObject.has("year")) {
-            writeResponse(exchange, "Поля Json некорректны", 422);
-        }
-
-        String title = jsonObject.get("title").getAsString();
-        int year = jsonObject.get("year").getAsInt();
-
-        List<String> details = new ArrayList<>();
-
-        if (year < 1888 || year > LocalDateTime.now().getYear() + 1) {
-            details.add("Год должен быть между 1888 и " + LocalDateTime.now().plusYears(1).getYear());
-        }
-
-        if (title.isEmpty()) {
-            details.add("Название не должно быть пустым");
-        } else if (title.length() > 100) {
-            details.add("Название слишком длинное");
-        }
-
-        if (!details.isEmpty()) {
-            Gson gson = new GsonBuilder().setPrettyPrinting().create();
-            String detailsJson = gson.toJson(details);
-            writeResponse(exchange, detailsJson, 422);
-            return;
-        }
-
-        Movie movie = new Movie(title, year);
-        int id = moviesStore.addMovie(movie);
-
-        jsonObject.addProperty("id", id);
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
-        String movieJson = gson.toJson(jsonObject);
-
-        writeResponse(exchange, movieJson, 201);
     }
 
     private void handleGetMovieById(HttpExchange exchange) throws IOException {
         Optional<Integer> idOpt = getMovieId(exchange);
         if (idOpt.isEmpty()) {
-            writeResponse(exchange, "Некорректный ID", 400);
+            String errorJson = getErrorJson("Некорректный ID", List.of());
+            writeResponse(exchange, errorJson, 400);
             return;
         }
 
         int id = idOpt.get();
         Movie movie = moviesStore.getMovieById(id);
         if (movie == null) {
-            writeResponse(exchange, "Фильм не найден", 404);
+            String errorJson = getErrorJson("Фильм не найден", List.of());
+            writeResponse(exchange, errorJson, 404);
             return;
         }
 
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
-        String movieJson = gson.toJson(movie);
-
-        writeResponse(exchange, movieJson, 200);
-
+        writeResponse(exchange, GSON.toJson(movie), 200);
     }
 
     private void handleDeleteMovieById(HttpExchange exchange) throws IOException {
         Optional<Integer> idOpt = getMovieId(exchange);
         if (idOpt.isEmpty()) {
-            writeResponse(exchange, "Некорректный ID", 400);
+            String errorJson = getErrorJson("Некорректный ID", List.of());
+            writeResponse(exchange, errorJson, 400);
             return;
         }
 
         int id = idOpt.get();
         Movie movie = moviesStore.getMovieById(id);
         if (movie == null) {
-            writeResponse(exchange, "Фильм не найден", 404);
+            String errorJson = getErrorJson("Фильм не найден", List.of());
+            writeResponse(exchange, errorJson, 404);
             return;
         }
 
         moviesStore.deleteMovieById(id);
-
         writeResponse(exchange, "Фильм успешно удалён", 204);
     }
 
     private void handleGetMovieByYear(HttpExchange exchange) throws IOException {
         Optional<Integer> yearOpt = getMovieYear(exchange);
         if (yearOpt.isEmpty()) {
-            writeResponse(exchange, "Некорректный параметр запроса — 'year'", 400);
+            String errorJson = getErrorJson("Некорректный параметр запроса — 'year'", List.of());
+            writeResponse(exchange, errorJson, 400);
             return;
         }
 
         int year = yearOpt.get();
         List<Movie> movieList = moviesStore.getMoviesByYear(year);
 
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
-        String movieJson = gson.toJson(movieList);
-
-        writeResponse(exchange, movieJson, 200);
+        writeResponse(exchange, GSON.toJson(movieList), 200);
     }
 
     private void writeResponse(HttpExchange exchange, String response, int responseCode) throws IOException {
         Headers responseHeaders = exchange.getResponseHeaders();
-        responseHeaders.set("Content-Type", "application/json; charset=utf-8");
-        exchange.sendResponseHeaders(responseCode, response.getBytes().length);
+        responseHeaders.set("Content-Type", "application/json; charset=UTF-8");
+        byte[] bytes = response.getBytes(DEFAULT_CHARSET);
+        exchange.sendResponseHeaders(responseCode, bytes.length);
 
         try (OutputStream outputStream = exchange.getResponseBody()) {
-            outputStream.write(response.getBytes(DEFAULT_CHARSET));
+            outputStream.write(bytes);
         }
     }
 
@@ -228,5 +236,10 @@ public class MoviesHandler implements HttpHandler {
         }
 
         return Endpoint.UNKNOWN;
+    }
+
+    private String getErrorJson(String error, List<String> details) {
+        ErrorResponse errorResponse = new ErrorResponse(error, details);
+        return GSON.toJson(errorResponse);
     }
 }
