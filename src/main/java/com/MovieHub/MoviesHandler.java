@@ -12,15 +12,14 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 public class MoviesHandler implements HttpHandler {
     private static final Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
-    private final Map<Integer, Movie> movies;
+    private final MoviesStore moviesStore;
 
-    public MoviesHandler(Map<Integer, Movie> movies) {
-        this.movies = movies;
+    public MoviesHandler(MoviesStore moviesStore) {
+        this.moviesStore = moviesStore;
     }
 
     @Override
@@ -55,7 +54,7 @@ public class MoviesHandler implements HttpHandler {
 
     private void handleGetMovies(HttpExchange exchange) throws IOException {
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
-        String moviesJson = gson.toJson(movies);
+        String moviesJson = gson.toJson(moviesStore.getAllMovies());
 
         writeResponse(exchange, moviesJson, 200);
     }
@@ -70,6 +69,10 @@ public class MoviesHandler implements HttpHandler {
         }
 
         JsonObject jsonObject = jsonElement.getAsJsonObject();
+        if (!jsonObject.has("title") || !jsonObject.has("year")) {
+            writeResponse(exchange, "Поля Json некорректны", 422);
+        }
+
         String title = jsonObject.get("title").getAsString();
         int year = jsonObject.get("year").getAsInt();
 
@@ -93,12 +96,13 @@ public class MoviesHandler implements HttpHandler {
         }
 
         Movie movie = new Movie(title, year);
-        int id = addNewMovie(movie);
+        int id = moviesStore.addMovie(movie);
+
         jsonObject.addProperty("id", id);
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         String movieJson = gson.toJson(jsonObject);
 
-        writeResponse(exchange, movieJson, 200);
+        writeResponse(exchange, movieJson, 201);
     }
 
     private void handleGetMovieById(HttpExchange exchange) throws IOException {
@@ -109,7 +113,7 @@ public class MoviesHandler implements HttpHandler {
         }
 
         int id = idOpt.get();
-        Movie movie = movies.get(id);
+        Movie movie = moviesStore.getMovieById(id);
         if (movie == null) {
             writeResponse(exchange, "Фильм не найден", 404);
             return;
@@ -118,28 +122,29 @@ public class MoviesHandler implements HttpHandler {
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         String movieJson = gson.toJson(movie);
 
-        writeResponse(exchange,movieJson, 200);
+        writeResponse(exchange, movieJson, 200);
 
     }
 
     private void handleDeleteMovieById(HttpExchange exchange) throws IOException {
         Optional<Integer> idOpt = getMovieId(exchange);
         if (idOpt.isEmpty()) {
-            writeResponse(exchange, "Некорректный ID", 404);
+            writeResponse(exchange, "Некорректный ID", 400);
             return;
         }
 
         int id = idOpt.get();
-        Movie movie = movies.get(id);
+        Movie movie = moviesStore.getMovieById(id);
         if (movie == null) {
             writeResponse(exchange, "Фильм не найден", 404);
             return;
         }
 
-        movies.remove(id);
+        moviesStore.deleteMovieById(id);
 
         writeResponse(exchange, "Фильм успешно удалён", 204);
     }
+
     private void handleGetMovieByYear(HttpExchange exchange) throws IOException {
         Optional<Integer> yearOpt = getMovieYear(exchange);
         if (yearOpt.isEmpty()) {
@@ -148,12 +153,7 @@ public class MoviesHandler implements HttpHandler {
         }
 
         int year = yearOpt.get();
-        List<Movie> movieList = new ArrayList<>();
-        for (Movie movie : movies.values()) {
-            if (movie.getYear() == year) {
-                movieList.add(movie);
-            }
-        }
+        List<Movie> movieList = moviesStore.getMoviesByYear(year);
 
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         String movieJson = gson.toJson(movieList);
@@ -201,12 +201,6 @@ public class MoviesHandler implements HttpHandler {
         } catch (NumberFormatException e) {
             return Optional.empty();
         }
-    }
-
-    private int addNewMovie(Movie movie) {
-        int id = movies.size();
-        movies.put(id + 1, movie);
-        return id + 1;
     }
 
     private Endpoint getEndpoint(URI uri, String method) {

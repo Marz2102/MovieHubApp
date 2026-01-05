@@ -1,8 +1,8 @@
 package com.MovieHub;
 
 public class Movie {
-    private String title;
-    private int year;
+    private final String title;
+    private final int year;
 
     public Movie(String title, int year) {
         this.title = title;
